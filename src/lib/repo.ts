@@ -21,17 +21,18 @@ function uid(prefix = "id"): string {
 }
 
 // ---- Neon direct-fetch (edge-safe) ----
-// Neon connection string format:
-// postgresql://user:password@host-or-pooler/dbname?sslmode=require
-// We parse it to extract pooler host and credentials.
+// Mirrors @neondatabase/serverless's HTTP mode without the native WASM binary
+// (which breaks Cloudflare Pages builds). Neon exposes a SQL-over-HTTP
+// endpoint: POST https://<host>/sql with Basic auth and { query, params }.
+// Response shape: { rows: [...], rowCount, ... } for a single statement.
 const DATABASE_URL = process.env.DATABASE_URL;
 
 function parseNeonUrl(url: string) {
   try {
     const u = new URL(url);
     return {
-      user: u.username,
-      password: u.password,
+      user: decodeURIComponent(u.username),
+      password: decodeURIComponent(u.password),
       host: u.host,
       database: u.pathname.replace("/", ""),
     };
@@ -40,12 +41,15 @@ function parseNeonUrl(url: string) {
   }
 }
 
-async function neonFetch(query: string, params: any[] = []) {
-  if (!DATABASE_URL) return null;
+async function neonFetch<T = any>(query: string, params: any[] = []): Promise<T> {
+  if (!DATABASE_URL) {
+    throw new Error("DATABASE_URL is not set — Neon query cannot run");
+  }
   const parsed = parseNeonUrl(DATABASE_URL);
-  if (!parsed) return null;
+  if (!parsed) {
+    throw new Error("DATABASE_URL is not a valid postgres URL");
+  }
 
-  // Use Neon REST API endpoint
   const endpoint = `https://${parsed.host}/sql`;
   const auth = Buffer.from(`${parsed.user}:${parsed.password}`).toString("base64");
 
@@ -53,18 +57,22 @@ async function neonFetch(query: string, params: any[] = []) {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Basic ${auth}`,
+      "neon-connection-string": DATABASE_URL,
     },
     body: JSON.stringify({
-      queries: [{ sql: query, params }],
+      query,
+      params,
     }),
   });
 
   if (!response.ok) {
     const text = await response.text();
-    throw new Error(`Neon fetch failed: ${response.status} ${text}`);
+    throw new Error(`Neon fetch failed (${response.status}): ${text}`);
   }
-  return response.json();
+
+  const data: any = await response.json();
+  // Neon returns { rows, rowCount, ... } for a single statement.
+  return data as T;
 }
 
 // ---- in-memory fallback stores ----
@@ -85,7 +93,7 @@ export async function createUser(
   const user: User = { id: uid("u"), nickname, createdAt: Date.now(), purposes };
   if (DATABASE_URL) {
     await neonFetch(
-      "INSERT INTO users (id, nickname, created_at, purposes) VALUES ($1, $2, $3, $4)",
+      "INSERT INTO users (id, nickname, created_at, purposes) VALUES ($1, $2, $3, $4::jsonb)",
       [user.id, user.nickname, user.createdAt, JSON.stringify(user.purposes)]
     );
   } else {
@@ -103,7 +111,12 @@ export async function getUser(id: string): Promise<User | null> {
     const rows = result?.rows ?? [];
     if (rows.length === 0) return null;
     const r = rows[0];
-    return { id: r.id, nickname: r.nickname, createdAt: Number(r.created_at), purposes: r.purposes };
+    return {
+      id: r.id,
+      nickname: r.nickname,
+      createdAt: Number(r.created_at),
+      purposes: typeof r.purposes === "string" ? JSON.parse(r.purposes) : r.purposes,
+    };
   }
   return memUsers.get(id) ?? null;
 }
@@ -118,7 +131,7 @@ export async function listUsers(): Promise<User[]> {
       id: r.id,
       nickname: r.nickname,
       createdAt: Number(r.created_at),
-      purposes: r.purposes,
+      purposes: typeof r.purposes === "string" ? JSON.parse(r.purposes) : r.purposes,
     }));
   }
   return Array.from(memUsers.values()).sort((a, b) => a.createdAt - b.createdAt);
@@ -129,7 +142,7 @@ export async function saveSnapshot(s: LoveBudSnapshot): Promise<void> {
   if (DATABASE_URL) {
     await neonFetch(
       `INSERT INTO snapshots (user_id, consented_at, scopes, moments, narratives, memory_keywords)
-       VALUES ($1,$2,$3,$4,$5,$6)
+       VALUES ($1,$2,$3::jsonb,$4::jsonb,$5::jsonb,$6::jsonb)
        ON CONFLICT (user_id) DO UPDATE SET
          consented_at = EXCLUDED.consented_at,
          scopes = EXCLUDED.scopes,
@@ -176,7 +189,7 @@ export async function saveFingerprint(f: EmotionalFingerprint): Promise<void> {
   if (DATABASE_URL) {
     await neonFetch(
       `INSERT INTO fingerprints (user_id, keywords, embedding, tags, generated_at)
-       VALUES ($1,$2,$3,$4,$5)
+       VALUES ($1,$2::jsonb,$3::jsonb,$4::jsonb,$5)
        ON CONFLICT (user_id) DO UPDATE SET
          keywords = EXCLUDED.keywords,
          embedding = EXCLUDED.embedding,
@@ -239,7 +252,7 @@ export async function saveMatch(m: Match): Promise<void> {
   if (DATABASE_URL) {
     await neonFetch(
       `INSERT INTO matches (id, user_a, user_b, purpose, reason, created_at)
-       VALUES ($1,$2,$3,$4,$5,$6)
+       VALUES ($1,$2,$3,$4,$5::jsonb,$6)
        ON CONFLICT (id) DO UPDATE SET
          user_a = EXCLUDED.user_a,
          user_b = EXCLUDED.user_b,

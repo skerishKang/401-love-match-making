@@ -1,0 +1,62 @@
+[
+  {
+    "id": "u_demo_goyo",
+    "nickname": "고요한밤",
+    "purposes": ["romance", "conversation"],
+    "scopes": ["moments", "emotions", "narratives", "memoryKeywords"],
+    "moments": [
+      { "id": "m1", "text": "새벽에 혼자 음악 들으며 창밖을 봤을 때의 고요한 설렘", "emotion": "설렘" },
+      { "id": "m2", "text": "친구와 헤어진 뒤 남은 거리의 여운과 그리움", "emotion": "그리움" },
+      { "id": "m3", "text": "좋아하는 노래를 큰 소리로 부르며 느낀 몰입과 행복", "emotion": "행복" }
+    ],
+    "narratives": [{ "id": "n1", "text": "나는 작은 순간에서 의미를 찾는 편이다. 남들이 지나치는 고요함 속에서 나만의 리듬을 발견한다." }],
+    "memoryKeywords": ["고요", "설렘", "여운", "몰입", "혼자만의시간"],
+    "createdAt": 1700000000000,
+    "tags": ["고요", "설렘", "여운", "몰입", "혼자만의시간"]
+  },
+  {
+    "id": "u_demo_cat",
+    "nickname": "도시의고양이",
+    "purposes": ["friendship", "conversation"],
+    "scopes": ["moments", "emotions", "narratives", "memoryKeywords"],
+    "moments": [
+      { "id": "m1", "text": "늦은 밤 편의점 앞에서 본 낯선 사람의 고요한 미소", "emotion": "평온" },
+      { "id": "m2", "text": "혼자 영화를 보고 나서 느낀 긴 여운과 그리움", "emotion": "그리움" },
+      { "id": "m3", "text": "좋아하는 곡을 귀에 꽂고 걷는 몰입의 시간", "emotion": "몰입" }
+    ],
+    "narratives": [{ "id": "n1", "text": "나는 혼자 있는 시간을 가장 소중히 여긴다. 고요한 순간들이 나를 되찾아준다." }],
+    "memoryKeywords": ["고요", "여운", "몰입", "혼자만의시간", "평온"],
+    "createdAt": 1700000100000,
+    "tags": ["고요", "여운", "몰입", "혼자만의시간", "평온"]
+  },
+  {
+    "id": "u_demo_fandom",
+    "nickname": "빛나는팬덤",
+    "purposes": ["fandom", "creation"],
+    "scopes": ["moments", "emotions", "narratives", "memoryKeywords"],
+    "moments": [
+      { "id": "m1", "text": "콘서트에서 함께 부르는 순간의 감동과 연대", "emotion": "감동" },
+      { "id": "m2", "text": "동료 팬과 나눈 설렘 가득한 이론 토론", "emotion": "설렘" },
+      { "id": "m3", "text": "좋아하는 작품을 분석하며 느낀 몰입", "emotion": "몰입" }
+    ],
+    "narratives": [{ "id": "n1", "text": "나는 같은 것을 사랑하는 사람들과 의미를 나눌 때 가장 살아있다고 느낀다." }],
+    "memoryKeywords": ["감동", "연대", "설렘", "몰입", "팬심"],
+    "createdAt": 1700000200000,
+    "tags": ["감동", "연대", "설렘", "몰입", "팬심"]
+  },
+  {
+    "id": "u_demo_dawn",
+    "nickname": "글쓰는새벽",
+    "purposes": ["creation", "conversation"],
+    "scopes": ["moments", "emotions", "narratives", "memoryKeywords"],
+    "moments": [
+      { "id": "m1", "text": "새벽에 혼자 문장을 다듬으며 느낀 고요한 몰입", "emotion": "몰입" },
+      { "id": "m2", "text": "마감을 앞두고 느낀 외로움과 그리움", "emotion": "외로움" },
+      { "id": "m3", "text": "좋은 표현을 찾았을 때의 작은 감동", "emotion": "감동" }
+    ],
+    "narratives": [{ "id": "n1", "text": "나는 혼자만의 시간에 가장 깊이 닿는다. 고요함이 나의 재료다." }],
+    "memoryKeywords": ["고요", "몰입", "외로움", "감동", "혼자만의시간"],
+    "createdAt": 1700000300000,
+    "tags": ["고요", "몰입", "외로움", "감동", "혼자만의시간"]
+  }
+]
