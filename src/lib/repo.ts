@@ -1,20 +1,18 @@
 // Data repository.
 //
-// Production (Cloudflare Pages / Neon): reads process.env.DATABASE_URL and
-// persists to Neon Postgres via @neondatabase/serverless (HTTP, edge-safe).
+// Production (Cloudflare Pages / Neon): uses DATABASE_URL with direct fetch
+// to Neon HTTP endpoint (edge-safe, no @neondatabase/serverless needed).
 //
 // Local / missing-DATABASE_URL fallback: in-memory Map store so `next dev`
 // and tests run with no database. Swap is transparent — same function
 // signatures, which are the stable contract used by the API routes.
 
-import { neon } from "@neondatabase/serverless";
 import {
   User,
   LoveBudSnapshot,
   EmotionalFingerprint,
   Match,
   RelationPurpose,
-  ConsentScope,
 } from "./types";
 import { DEMO_USERS, DEMO_SNAPSHOTS, DEMO_FINGERPRINTS } from "./demo-data";
 
@@ -22,9 +20,25 @@ function uid(prefix = "id"): string {
   return `${prefix}_${Math.random().toString(36).slice(2, 10)}${Date.now().toString(36)}`;
 }
 
-// ---- Neon connection (lazy) ----
+// ---- Neon direct-fetch (edge-safe) ----
 const DATABASE_URL = process.env.DATABASE_URL;
-const sql = DATABASE_URL ? neon(DATABASE_URL) : null;
+
+async function neonFetch(query: string, params: any[] = []) {
+  if (!DATABASE_URL) return null;
+  const response = await fetch(DATABASE_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      // Note: Neon serverless uses HTTP via pg protocol
+    },
+    body: JSON.stringify({ queries: [{ sql: query, params }] }),
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Neon fetch failed: ${response.status} ${text}`);
+  }
+  return response.json();
+}
 
 // ---- in-memory fallback stores ----
 const memUsers = new Map<string, User>(DEMO_USERS.map((u) => [u.id, u]));
@@ -42,8 +56,8 @@ export async function createUser(
   purposes: RelationPurpose[]
 ): Promise<User> {
   const user: User = { id: uid("u"), nickname, createdAt: Date.now(), purposes };
-  if (sql) {
-    await sql(
+  if (DATABASE_URL) {
+    await neonFetch(
       "INSERT INTO users (id, nickname, created_at, purposes) VALUES ($1, $2, $3, $4)",
       [user.id, user.nickname, user.createdAt, JSON.stringify(user.purposes)]
     );
@@ -54,11 +68,12 @@ export async function createUser(
 }
 
 export async function getUser(id: string): Promise<User | null> {
-  if (sql) {
-    const rows = (await sql(
+  if (DATABASE_URL) {
+    const result: any = await neonFetch(
       "SELECT id, nickname, created_at, purposes FROM users WHERE id = $1",
       [id]
-    )) as any[];
+    );
+    const rows = result?.rows ?? [];
     if (rows.length === 0) return null;
     const r = rows[0];
     return { id: r.id, nickname: r.nickname, createdAt: Number(r.created_at), purposes: r.purposes };
@@ -67,11 +82,12 @@ export async function getUser(id: string): Promise<User | null> {
 }
 
 export async function listUsers(): Promise<User[]> {
-  if (sql) {
-    const rows = (await sql(
+  if (DATABASE_URL) {
+    const result: any = await neonFetch(
       "SELECT id, nickname, created_at, purposes FROM users ORDER BY created_at ASC"
-    )) as any[];
-    return rows.map((r) => ({
+    );
+    const rows = result?.rows ?? [];
+    return rows.map((r: any) => ({
       id: r.id,
       nickname: r.nickname,
       createdAt: Number(r.created_at),
@@ -83,8 +99,8 @@ export async function listUsers(): Promise<User[]> {
 
 // ---------- Snapshots (LoveBud consent-scoped) ----------
 export async function saveSnapshot(s: LoveBudSnapshot): Promise<void> {
-  if (sql) {
-    await sql(
+  if (DATABASE_URL) {
+    await neonFetch(
       `INSERT INTO snapshots (user_id, consented_at, scopes, moments, narratives, memory_keywords)
        VALUES ($1,$2,$3,$4,$5,$6)
        ON CONFLICT (user_id) DO UPDATE SET
@@ -108,11 +124,12 @@ export async function saveSnapshot(s: LoveBudSnapshot): Promise<void> {
 }
 
 export async function getSnapshot(userId: string): Promise<LoveBudSnapshot | null> {
-  if (sql) {
-    const rows = (await sql(
+  if (DATABASE_URL) {
+    const result: any = await neonFetch(
       "SELECT user_id, consented_at, scopes, moments, narratives, memory_keywords FROM snapshots WHERE user_id = $1",
       [userId]
-    )) as any[];
+    );
+    const rows = result?.rows ?? [];
     if (rows.length === 0) return null;
     const r = rows[0];
     return {
@@ -129,8 +146,8 @@ export async function getSnapshot(userId: string): Promise<LoveBudSnapshot | nul
 
 // ---------- Fingerprints ----------
 export async function saveFingerprint(f: EmotionalFingerprint): Promise<void> {
-  if (sql) {
-    await sql(
+  if (DATABASE_URL) {
+    await neonFetch(
       `INSERT INTO fingerprints (user_id, keywords, embedding, tags, generated_at)
        VALUES ($1,$2,$3,$4,$5)
        ON CONFLICT (user_id) DO UPDATE SET
@@ -154,11 +171,12 @@ export async function saveFingerprint(f: EmotionalFingerprint): Promise<void> {
 export async function getFingerprint(
   userId: string
 ): Promise<EmotionalFingerprint | null> {
-  if (sql) {
-    const rows = (await sql(
+  if (DATABASE_URL) {
+    const result: any = await neonFetch(
       "SELECT user_id, keywords, embedding, tags, generated_at FROM fingerprints WHERE user_id = $1",
       [userId]
-    )) as any[];
+    );
+    const rows = result?.rows ?? [];
     if (rows.length === 0) return null;
     const r = rows[0];
     return {
@@ -173,11 +191,12 @@ export async function getFingerprint(
 }
 
 export async function listFingerprints(): Promise<EmotionalFingerprint[]> {
-  if (sql) {
-    const rows = (await sql(
+  if (DATABASE_URL) {
+    const result: any = await neonFetch(
       "SELECT user_id, keywords, embedding, tags, generated_at FROM fingerprints"
-    )) as any[];
-    return rows.map((r) => ({
+    );
+    const rows = result?.rows ?? [];
+    return rows.map((r: any) => ({
       userId: r.user_id,
       keywords: r.keywords,
       embedding: r.embedding,
@@ -190,8 +209,8 @@ export async function listFingerprints(): Promise<EmotionalFingerprint[]> {
 
 // ---------- Matches ----------
 export async function saveMatch(m: Match): Promise<void> {
-  if (sql) {
-    await sql(
+  if (DATABASE_URL) {
+    await neonFetch(
       `INSERT INTO matches (id, user_a, user_b, purpose, reason, created_at)
        VALUES ($1,$2,$3,$4,$5,$6)
        ON CONFLICT (id) DO UPDATE SET
@@ -215,12 +234,13 @@ export async function saveMatch(m: Match): Promise<void> {
 }
 
 export async function listMatchesForUser(userId: string): Promise<Match[]> {
-  if (sql) {
-    const rows = (await sql(
+  if (DATABASE_URL) {
+    const result: any = await neonFetch(
       "SELECT id, user_a, user_b, purpose, reason, created_at FROM matches WHERE user_a = $1 OR user_b = $1 ORDER BY created_at DESC",
       [userId]
-    )) as any[];
-    return rows.map((r) => ({
+    );
+    const rows = result?.rows ?? [];
+    return rows.map((r: any) => ({
       id: r.id,
       userA: r.user_a,
       userB: r.user_b,
