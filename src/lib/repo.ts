@@ -1,4 +1,13 @@
-import { getDb } from "./db";
+// In-memory repository. Intentionally DB-free so the app builds and runs on
+// static/edge platforms (Cloudflare Pages) with no filesystem or database.
+//
+// Demo users/snapshots/fingerprints are seeded from ./demo-data (precomputed
+// from scripts/seed.mjs + embedding.ts). New records created at runtime live
+// only in process memory (reset on redeploy) — fine for the demo.
+//
+// To move to a real database later (e.g. Neon Postgres), replace the bodies
+// of these functions with DB calls; the signatures are the stable contract.
+
 import {
   User,
   LoveBudSnapshot,
@@ -7,118 +16,71 @@ import {
   RelationPurpose,
   ConsentScope,
 } from "./types";
+import {
+  DEMO_USERS,
+  DEMO_SNAPSHOTS,
+  DEMO_FINGERPRINTS,
+} from "./demo-data";
 
 function uid(prefix = "id"): string {
   return `${prefix}_${Math.random().toString(36).slice(2, 10)}${Date.now().toString(36)}`;
 }
 
+// ---- runtime (in-memory) stores ----
+const users = new Map<string, User>(DEMO_USERS.map((u) => [u.id, u]));
+const snapshots = new Map<string, LoveBudSnapshot>(
+  Object.entries(DEMO_SNAPSHOTS).map(([k, v]) => [k, v])
+);
+const fingerprints = new Map<string, EmotionalFingerprint>(
+  Object.entries(DEMO_FINGERPRINTS).map(([k, v]) => [k, v])
+);
+const matches = new Map<string, Match>();
+
 // ---------- Users ----------
 export function createUser(nickname: string, purposes: RelationPurpose[]): User {
-  const db = getDb();
   const id = uid("u");
-  const createdAt = Date.now();
-  db.prepare(
-    `INSERT INTO users (id, nickname, created_at, purposes) VALUES (?, ?, ?, ?)`
-  ).run(id, nickname, createdAt, JSON.stringify(purposes));
-  return { id, nickname, createdAt, purposes };
+  const user: User = { id, nickname, createdAt: Date.now(), purposes };
+  users.set(id, user);
+  return user;
 }
 
 export function getUser(id: string): User | null {
-  const row = getDb().prepare(`SELECT * FROM users WHERE id = ?`).get(id) as any;
-  if (!row) return null;
-  return { ...row, purposes: JSON.parse(row.purposes) };
+  return users.get(id) ?? null;
 }
 
 export function listUsers(): User[] {
-  const rows = getDb().prepare(`SELECT * FROM users ORDER BY created_at`).all() as any[];
-  return rows.map((r) => ({ ...r, purposes: JSON.parse(r.purposes) }));
+  return Array.from(users.values()).sort((a, b) => a.createdAt - b.createdAt);
 }
 
 // ---------- Snapshots (LoveBud consent-scoped) ----------
 export function saveSnapshot(s: LoveBudSnapshot): void {
-  getDb()
-    .prepare(
-      `INSERT OR REPLACE INTO snapshots
-       (user_id, consented_at, scopes, moments, narratives, memory_keywords)
-       VALUES (?, ?, ?, ?, ?, ?)`
-    )
-    .run(
-      s.userId,
-      s.consentedAt,
-      JSON.stringify(s.scopes),
-      JSON.stringify(s.moments),
-      JSON.stringify(s.narratives),
-      JSON.stringify(s.memoryKeywords)
-    );
+  snapshots.set(s.userId, s);
 }
 
 export function getSnapshot(userId: string): LoveBudSnapshot | null {
-  const row = getDb().prepare(`SELECT * FROM snapshots WHERE user_id = ?`).get(userId) as any;
-  if (!row) return null;
-  return {
-    userId: row.user_id,
-    consentedAt: row.consented_at,
-    scopes: JSON.parse(row.scopes),
-    moments: JSON.parse(row.moments),
-    narratives: JSON.parse(row.narratives),
-    memoryKeywords: JSON.parse(row.memory_keywords),
-  };
+  return snapshots.get(userId) ?? null;
 }
 
 // ---------- Fingerprints ----------
 export function saveFingerprint(f: EmotionalFingerprint): void {
-  getDb()
-    .prepare(
-      `INSERT OR REPLACE INTO fingerprints
-       (user_id, keywords, embedding, tags, generated_at)
-       VALUES (?, ?, ?, ?, ?)`
-    )
-    .run(
-      f.userId,
-      JSON.stringify(f.keywords),
-      JSON.stringify(f.embedding),
-      JSON.stringify(f.tags),
-      f.generatedAt
-    );
+  fingerprints.set(f.userId, f);
 }
 
 export function getFingerprint(userId: string): EmotionalFingerprint | null {
-  const row = getDb().prepare(`SELECT * FROM fingerprints WHERE user_id = ?`).get(userId) as any;
-  if (!row) return null;
-  return {
-    userId: row.user_id,
-    keywords: JSON.parse(row.keywords),
-    embedding: JSON.parse(row.embedding),
-    tags: JSON.parse(row.tags),
-    generatedAt: row.generated_at,
-  };
+  return fingerprints.get(userId) ?? null;
 }
 
 export function listFingerprints(): EmotionalFingerprint[] {
-  const rows = getDb().prepare(`SELECT * FROM fingerprints`).all() as any[];
-  return rows.map((r) => ({
-    userId: r.user_id,
-    keywords: JSON.parse(r.keywords),
-    embedding: JSON.parse(r.embedding),
-    tags: JSON.parse(r.tags),
-    generatedAt: r.generated_at,
-  }));
+  return Array.from(fingerprints.values());
 }
 
 // ---------- Matches ----------
 export function saveMatch(m: Match): void {
-  getDb()
-    .prepare(
-      `INSERT OR REPLACE INTO matches
-       (id, user_a, user_b, purpose, reason, created_at)
-       VALUES (?, ?, ?, ?, ?, ?)`
-    )
-    .run(m.id, m.userA, m.userB, m.purpose, JSON.stringify(m.reason), m.createdAt);
+  matches.set(m.id, m);
 }
 
 export function listMatchesForUser(userId: string): Match[] {
-  const rows = getDb()
-    .prepare(`SELECT * FROM matches WHERE user_a = ? OR user_b = ? ORDER BY created_at DESC`)
-    .all(userId) as any[];
-  return rows.map((r) => ({ ...r, reason: JSON.parse(r.reason) }));
+  return Array.from(matches.values())
+    .filter((m) => m.userA === userId || m.userB === userId)
+    .sort((a, b) => b.createdAt - a.createdAt);
 }

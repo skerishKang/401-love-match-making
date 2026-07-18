@@ -8,3 +8,6 @@ data/
 *.log
 .DS_Store
 next-env.d.ts
+
+# local-only seed (writes node:sqlite .db)
+scripts/seed.mjs
