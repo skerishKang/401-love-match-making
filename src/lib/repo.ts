@@ -21,18 +21,45 @@ function uid(prefix = "id"): string {
 }
 
 // ---- Neon direct-fetch (edge-safe) ----
+// Neon connection string format:
+// postgresql://user:password@host-or-pooler/dbname?sslmode=require
+// We parse it to extract pooler host and credentials.
 const DATABASE_URL = process.env.DATABASE_URL;
+
+function parseNeonUrl(url: string) {
+  try {
+    const u = new URL(url);
+    return {
+      user: u.username,
+      password: u.password,
+      host: u.host,
+      database: u.pathname.replace("/", ""),
+    };
+  } catch {
+    return null;
+  }
+}
 
 async function neonFetch(query: string, params: any[] = []) {
   if (!DATABASE_URL) return null;
-  const response = await fetch(DATABASE_URL, {
+  const parsed = parseNeonUrl(DATABASE_URL);
+  if (!parsed) return null;
+
+  // Use Neon REST API endpoint
+  const endpoint = `https://${parsed.host}/sql`;
+  const auth = Buffer.from(`${parsed.user}:${parsed.password}`).toString("base64");
+
+  const response = await fetch(endpoint, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      // Note: Neon serverless uses HTTP via pg protocol
+      Authorization: `Basic ${auth}`,
     },
-    body: JSON.stringify({ queries: [{ sql: query, params }] }),
+    body: JSON.stringify({
+      queries: [{ sql: query, params }],
+    }),
   });
+
   if (!response.ok) {
     const text = await response.text();
     throw new Error(`Neon fetch failed: ${response.status} ${text}`);
