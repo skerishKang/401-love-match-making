@@ -5,19 +5,24 @@
   "scripts": {
     "dev": "next dev -p 3000",
     "build": "next build",
+    "pages:build": "next-on-pages",
     "start": "next start -p 3000",
     "lint": "next lint",
     "seed": "node scripts/seed.mjs"
   },
   "dependencies": {
-    "next": "^14.2.33",
-    "react": "18.3.1",
-    "react-dom": "18.3.1"
+    "@neondatabase/serverless": "^0.10.4",
+    "next": "^15.1.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
   },
   "devDependencies": {
+    "@cloudflare/next-on-pages": "^1.13.0",
+    "@cloudflare/workers-types": "^4.20240208.0",
     "@types/node": "^22.20.1",
     "@types/react": "18.3.3",
     "@types/react-dom": "18.3.0",
-    "typescript": "5.5.4"
+    "typescript": "5.5.4",
+    "wrangler": "4.100.0"
   }
 }

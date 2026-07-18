@@ -3,6 +3,8 @@ import { saveSnapshot, getSnapshot, saveFingerprint, getFingerprint } from "@/li
 import { simulateLoveBudPull, buildFingerprint } from "@/lib/lovebud";
 import { ConsentScope } from "@/lib/types";
 
+export const runtime = "edge";
+
 export async function POST(req: NextRequest) {
   const body = await req.json();
   const userId: string = body.userId;
@@ -18,11 +20,11 @@ export async function POST(req: NextRequest) {
   }
   // 1) simulate the consent-scoped LoveBud pull
   const snap = simulateLoveBudPull(userId, scopes);
-  saveSnapshot(snap);
+  await saveSnapshot(snap);
 
   // 2) build the emotional fingerprint from the snapshot
   const fp = buildFingerprint(snap);
-  saveFingerprint({ userId, ...fp });
+  await saveFingerprint({ userId, ...fp });
 
   return NextResponse.json({ snapshot: snap, fingerprint: fp });
 }
@@ -33,7 +35,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "userId 필요" }, { status: 400 });
   }
   return NextResponse.json({
-    snapshot: getSnapshot(userId),
-    fingerprint: getFingerprint(userId),
+    snapshot: await getSnapshot(userId),
+    fingerprint: await getFingerprint(userId),
   });
 }

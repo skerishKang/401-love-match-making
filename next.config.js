@@ -1,11 +1,17 @@
+const { setupDevPlatform } = require('@cloudflare/next-on-pages/next-dev');
+
+// During `next dev` on Cloudflare Pages we need the CF platform bindings wired up.
+if (process.env.NODE_ENV === 'development') {
+  try {
+    setupDevPlatform();
+  } catch {
+    /* not running on CF dev platform — ignore */
+  }
+}
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  experimental: {
-    // Keep native/server-only modules out of the server bundle. node:sqlite
-    // is built-in but listing it avoids any bundling surprises.
-    serverComponentsExternalPackages: ["node:sqlite"],
-  },
 };
 
 module.exports = nextConfig;
