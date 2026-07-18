@@ -30,10 +30,14 @@ const DATABASE_URL = process.env.DATABASE_URL;
 function parseNeonUrl(url: string) {
   try {
     const u = new URL(url);
+    // Neon's SQL-over-HTTP (/sql) endpoint is NOT served on the pooler host
+    // (-pooler.c-...). Strip "-pooler" so the HTTP API works regardless of
+    // whether DATABASE_URL points at the pooler or the direct compute endpoint.
+    const host = u.host.replace(/-pooler(?=\.)/, "");
     return {
       user: decodeURIComponent(u.username),
       password: decodeURIComponent(u.password),
-      host: u.host,
+      host,
       database: u.pathname.replace("/", ""),
     };
   } catch {
